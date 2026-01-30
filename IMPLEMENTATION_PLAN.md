@@ -1,52 +1,79 @@
 # Noita 减速敌人模组实现规划
 
+> ⚠️ **重要提示**：本文档记录了开发过程中的探索过程。某些方法已被标记为"不可行"，请参考最终实现方案。
+
 ## 一、功能概述
 
 本模组旨在降低游戏中除玩家外的所有生物（敌人）的移动速度，以及这些生物发射的投射物的飞行速度。模组不会对玩家自身或玩家发射的投射物产生任何影响。此功能可以降低游戏难度，为追求更轻松游戏体验的玩家提供选择。
 
-核心设计原则是识别并区分玩家实体与非玩家实体，仅对后者应用速度修改。通过利用 Noita 的实体组件系统（ECS）和 Lua 脚本挂载机制，可以在实体创建时动态调整其速度相关组件的值。
+核心设计原则是识别并区分玩家实体与非玩家实体，仅对后者应用速度修改。通过利用 Noita 的实体组件系统（ECS）和 Lua 脚本挂载机制，实现减速效果。
 
 ## 二、可行性分析
 
 ### 2.1 技术可行性评估
 
-**降低敌人移动速度：完全可行**
+**降低敌人移动速度：✅ 使用游戏内置减速效果（可行）**
 
-Noita 中的实体通过 VelocityComponent 控制移动速度。VelocityComponent 包含私有成员 `mVelocity`（vec2 类型，存储 x 和 y 分量）。实体创建时挂载 Lua 脚本，检测到敌人实体后，通过以下步骤修改速度：
-1. 使用 `EntityGetFirstComponent` 获取 VelocityComponent
-2. 使用 `ComponentGetValue2(comp, "mVelocity")` 获取当前速度向量
-3. 使用 `ComponentSetValue2(comp, "mVelocity", vx * mult, vy * mult)` 设置减速后的速度
+直接修改 `VelocityComponent.mVelocity` 或 `CharacterPlatformingComponent.run_velocity` **不可行**，因为 Noita 的 AI 系统会在每帧重置这些值，导致修改被覆盖或引发无限循环。
 
-此方法基于官方 Lua API 实现，技术风险较低。
+✅ **正确方案**：使用游戏内置的 `GameEffectComponent` 效果：
+- `INTERNAL_ICE` - 内部结冰减速效果
+- `MOVEMENT_SLOWER` - 直接减速效果
 
-**降低敌人投射物速度：完全可行**
+通过向范围内的敌人添加这些效果，可以实现稳定的减速。
 
-投射物通过 ProjectileComponent 管理，该组件包含 `speed_min` 和 `speed_max` 两个关键属性，分别定义投射物的最小和最大速度。在 OnEntityCreated 挂接函数中，识别敌人发射的投射物后：
-1. 使用 `EntityGetFirstComponent` 获取 ProjectileComponent
-2. 使用 `ComponentGetValue2(comp, "speed_min"/"speed_max")` 获取速度值
-3. 使用 `ComponentSetValue2(comp, "speed_min"/"speed_max", value)` 设置减速后的速度
+**降低敌人投射物速度：✅ 直接修改速度（可行）**
 
-**排除玩家影响：完全可行**
+投射物通过 ProjectileComponent 管理，该组件包含 `speed_min` 和 `speed_max` 两个关键属性。直接修改这些值和 VelocityComponent 不会每帧被重置，投射物减速**可行**。
 
-Noita 实体系统支持标签（Tags）机制。玩家实体通常带有 "player" 标签，可以通过 `EntityGetWithTag` 或 `EntityHasTag` 函数识别。此外，ProjectileComponent 的私有成员 `mWhoShot`（类型为 EntityID）存储了投射物的发射者，可以追溯投射物的发射者，从而判断是否为玩家发射。通过多重验证机制，可以准确排除玩家相关实体。
+**排除玩家影响：✅ 使用标签识别（可行）**
+
+Noita 实体系统支持标签（Tags）机制。玩家实体带有 "player_unit" 标签，可以通过 `EntityHasTag(entity_id, "player_unit")` 函数识别。
 
 ### 2.2 实现方案对比
 
-| 方案 | 优点 | 缺点 |
+| 方案 | 状态 | 说明 |
 |------|------|------|
-| OnEntityCreated 挂接 | 实时处理，资源消耗低 | 需处理组件加载时序 |
-| Update 循环批量处理 | 可处理遗漏实体 | 每帧遍历所有实体，性能开销大 |
-| 脚本挂载游戏核心脚本 | 修改彻底，影响范围广 | 兼容性风险高 |
+| OnEntityCreated 挂接 + 直接修改速度 | ❌ 不可行 | AI 系统每帧重置速度值 |
+| Update 循环直接修改速度 | ❌ 不可行 | 性能开销大且仍会被重置 |
+| 脚本挂载游戏核心脚本 | ❌ 不可行 | 兼容性风险高且复杂 |
+| **慢速场 + 游戏效果** | ✅ **可行** | 当前实现方案 |
 
-综合考虑性能和兼容性，推荐采用 OnEntityCreated 挂接为主、Update 循环为辅的混合方案。
+### 2.3 最终实现方案
 
-### 2.3 风险评估
+**慢速场（Slow Field）方案**：
+1. 创建一个跟随玩家的"慢速场"实体
+2. 每4帧检测范围内的敌人和投射物
+3. 对敌人应用 `INTERNAL_ICE` + `MOVEMENT_SLOWER` 游戏效果
+4. 对投射物直接修改速度和 VelocityComponent
+5. 持续刷新效果以保持减速
 
-**组件加载时序风险**：EntityCreate 之后组件可能尚未完全初始化。解决方案是使用 `GameScheduleFunction` 延迟一帧处理，确保组件已加载完成。
+## 三、技术架构
 
-**修改被覆盖风险**：游戏某些系统可能在后续帧重新设置组件值。解决方案是在 Update 循环中持续检查并应用修改，或提高修改的优先级。
+### 3.1 模组目录结构
 
-**兼容性风险**：与其他修改敌人行为的模组可能存在冲突。解决方案是提供配置选项，允许玩家调整减速强度，并明确标注兼容性问题。
+```
+slow_enemies/
+├── mod.xml                    # 模组配置文件
+├── init.lua                   # 模组初始化脚本
+├── config.txt                 # 用户配置文件
+└── files/
+    ├── entities/
+    │   └── slow_field.xml     # 慢速场实体定义
+    └── scripts/
+        ├── slow_field.lua     # 慢速场主逻辑
+        └── config.lua         # 配置管理脚本
+```
+
+### 3.2 核心模块设计
+
+**config.lua - 配置管理模块**
+
+负责加载和保存用户配置，提供减速比例等参数的访问接口。
+
+**slow_field.lua - 主逻辑模块**
+
+实现慢速场的核心逻辑，包括实体检测、游戏效果应用、投射物减速。
 
 ## 三、技术架构
 
@@ -173,228 +200,181 @@ function IsDebugEnabled()
 end
 ```
 
-### 4.4 util.lua 工具函数脚本
+### 4.4 slow_field.lua 主逻辑脚本（最终实现）
 
 ```lua
-dofile("data/scripts/utilities.lua")
+dofile_once("mods/slow_enemies/files/scripts/config.lua")
 
-function IsPlayerEntity(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    if EntityGetName(entity_id) == "player" then
-        return true
-    end
-    if EntityHasTag(entity_id, "player") then
-        return true
-    end
-    return false
+local field_entity_id = GetUpdatedEntityID()
+local field_x, field_y = EntityGetTransform(field_entity_id)
+
+local config = {
+    radius = 512,
+    enemy_slow_mult = 0.4,
+    projectile_slow_mult = 0.4
+}
+
+function is_player(entity_id)
+    return EntityHasTag(entity_id, "player_unit")
 end
 
-function IsEnemyEntity(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    if IsPlayerEntity(entity_id) then
-        return false
-    end
-    if EntityHasTag(entity_id, "enemy") then
-        return true
-    end
-    if EntityHasTag(entity_id, "mortal") then
-        return true
-    end
-    if EntityHasTag(entity_id, "character") then
-        local player = get_player_entity()
-        if player ~= nil and entity_id ~= player then
-            return true
-        end
-    end
-    return false
-end
-
-function GetProjectileShooter(entity_id)
-    local projectile_component = EntityGetFirstComponent(entity_id, "Projectile")
-    if projectile_component == nil then
-        return nil
-    end
-    local shooter = ComponentGetValue2(projectile_component, "mWhoShot")
-    return shooter
-end
-
-function IsPlayerProjectile(entity_id)
-    local shooter = GetProjectileShooter(entity_id)
-    if shooter == nil or shooter == 0 then
-        return false
-    end
-    return IsPlayerEntity(shooter)
-end
-
-function IsEnemyProjectile(entity_id)
-    if IsPlayerProjectile(entity_id) then
-        return false
-    end
-    if EntityGetFirstComponent(entity_id, "Projectile") == nil then
+function is_enemy_projectile(entity_id)
+    local proj_comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
+    if proj_comp == nil then return false end
+    local shooter = ComponentGetValue2(proj_comp, "mWhoShot")
+    if shooter ~= nil and shooter ~= 0 and is_player(shooter) then
         return false
     end
     return true
 end
 
-function get_player_entity()
-    local player = EntityGetWithName("player")
-    if player and #player > 0 then
-        return player[1]
+function apply_slow_effect(entity_id)
+    local has_internal_ice = false
+    local has_movement_slower = false
+
+    local children = EntityGetAllChildren(entity_id)
+    if children ~= nil then
+        for _, child_id in ipairs(children) do
+            local effect_comp = EntityGetFirstComponent(child_id, "GameEffectComponent")
+            if effect_comp ~= nil then
+                local effect_type = ComponentGetValue2(effect_comp, "effect")
+                if effect_type == "INTERNAL_ICE" then
+                    has_internal_ice = true
+                    ComponentSetValue2(effect_comp, "frames", 600)
+                elseif effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
+                    has_movement_slower = true
+                    ComponentSetValue2(effect_comp, "frames", 600)
+                end
+            end
+        end
     end
-    return nil
+
+    if not has_internal_ice then
+        local effect_entity = EntityLoad("data/entities/misc/effect_internal_ice.xml")
+        if effect_entity ~= nil and effect_entity ~= 0 then
+            EntityAddChild(entity_id, effect_entity)
+        end
+    end
+
+    if not has_movement_slower then
+        local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
+        if effect_entity ~= nil and effect_entity ~= 0 then
+            EntityAddChild(entity_id, effect_entity)
+        end
+    end
+end
+
+function slow_projectile(entity_id, slow_mult)
+    local proj_comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
+    if proj_comp == nil then return end
+
+    local speed_min = ComponentGetValue2(proj_comp, "speed_min")
+    local speed_max = ComponentGetValue2(proj_comp, "speed_max")
+    if speed_min and speed_max then
+        ComponentSetValue2(proj_comp, "speed_min", speed_min * slow_mult)
+        ComponentSetValue2(proj_comp, "speed_max", speed_max * slow_mult)
+    end
+
+    local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
+    if vel_comp ~= nil then
+        local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
+        if vx ~= nil and vy ~= nil then
+            local speed = math.sqrt(vx * vx + vy * vy)
+            if speed > 0 then
+                local new_speed = speed * slow_mult
+                ComponentSetValue2(vel_comp, "mVelocity", (vx / speed) * new_speed, (vy / speed) * new_speed)
+            end
+        end
+    end
+end
+
+if config.radius > 0 then
+    local enemies = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "enemy")
+    for _, enemy_id in ipairs(enemies) do
+        if not is_player(enemy_id) then
+            apply_slow_effect(enemy_id)
+        end
+    end
+
+    local mortals = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "mortal")
+    for _, enemy_id in ipairs(mortals) do
+        if not is_player(enemy_id)
+           and not EntityHasTag(enemy_id, "item")
+           and not EntityHasTag(enemy_id, "corpse")
+           and not EntityHasTag(enemy_id, "dead") then
+            apply_slow_effect(enemy_id)
+        end
+    end
+
+    local projectiles = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "projectile")
+    for _, proj_id in ipairs(projectiles) do
+        if is_enemy_projectile(proj_id) then
+            slow_projectile(proj_id, config.projectile_slow_mult)
+        end
+    end
 end
 ```
 
-### 4.5 main.lua 主逻辑脚本
+### 4.5 slow_field.xml 实体定义
 
-```lua
-dofile("mods/slow_enemies/files/scripts/config.lua")
-dofile("mods/slow_enemies/files/scripts/util.lua")
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<Entity tags="slow_field">
+    <InheritTransformComponent>
+    </InheritTransformComponent>
 
-local processed_entities = {}
+    <LuaComponent
+        execute_every_n_frame="4"
+        script_source_file="mods/slow_enemies/files/scripts/slow_field.lua">
+    </LuaComponent>
 
-function reduce_enemy_velocity(entity_id)
-    local velocity_component = EntityGetFirstComponent(entity_id, "Velocity")
-    if velocity_component == nil then
-        return
-    end
-
-    local mult = GetEnemySpeedMultiplier()
-    if mult >= 1.0 then
-        return
-    end
-
-    local vx, vy = ComponentGetValue2(velocity_component, "mVelocity")
-    ComponentSetValue2(velocity_component, "mVelocity", vx * mult, vy * mult)
-
-    if IsDebugEnabled() then
-        print(string.format("[SlowEnemies] 减速实体 %d: (%.2f, %.2f) -> (%.2f, %.2f)",
-            entity_id, vx, vy, vx * mult, vy * mult))
-    end
-end
-
-function reduce_projectile_speed(entity_id)
-    local projectile_component = EntityGetFirstComponent(entity_id, "Projectile")
-    if projectile_component == nil then
-        return
-    end
-
-    local mult = GetProjectileSpeedMultiplier()
-    if mult >= 1.0 then
-        return
-    end
-
-    local speed_min = ComponentGetValue2(projectile_component, "speed_min")
-    local speed_max = ComponentGetValue2(projectile_component, "speed_max")
-    ComponentSetValue2(projectile_component, "speed_min", speed_min * mult)
-    ComponentSetValue2(projectile_component, "speed_max", speed_max * mult)
-
-    if IsDebugEnabled() then
-        print(string.format("[SlowEnemies] 减速投射物 %d: [%d-%d] -> [%d-%d]",
-            entity_id, speed_min, speed_max, speed_min * mult, speed_max * mult))
-    end
-end
-
-function process_entity(entity_id)
-    if not IsEnabled() then
-        return
-    end
-
-    if processed_entities[entity_id] then
-        return
-    end
-
-    if IsEnemyEntity(entity_id) then
-        reduce_enemy_velocity(entity_id)
-        processed_entities[entity_id] = true
-    elseif IsEnemyProjectile(entity_id) then
-        reduce_projectile_speed(entity_id)
-        processed_entities[entity_id] = true
-    end
-end
-
-function OnEntityCreated(entity_id)
-    GameScheduleFunction(function()
-        if EntityExists(entity_id) then
-            process_entity(entity_id)
-        end
-    end, {}, 1)
-end
-
-function OnEntityDestroyed(entity_id)
-    processed_entities[entity_id] = nil
-end
-
-function Update()
-    if not IsEnabled() then
-        return
-    end
-
-    local entities = EntityGetAll()
-    for _, entity_id in ipairs(entities) do
-        process_entity(entity_id)
-    end
-
-    if GameGetFrameNum() % 300 == 0 then
-        cleanup_processed_list()
-    end
-end
-
-function cleanup_processed_list()
-    local to_remove = {}
-    for entity_id, _ in pairs(processed_entities) do
-        if not EntityExists(entity_id) then
-            table.insert(to_remove, entity_id)
-        end
-    end
-    for _, entity_id in ipairs(to_remove) do
-        processed_entities[entity_id] = nil
-    end
-end
-
-function ModMain()
-    LoadConfig()
-    print("[SlowEnemies] 模组已加载")
-    print(string.format("[SlowEnemies] 敌人速度倍率: %.2f", GetEnemySpeedMultiplier()))
-    print(string.format("[SlowEnemies] 投射物速度倍率: %.2f", GetProjectileSpeedMultiplier()))
-end
+    <ParticleEmitterComponent
+        emitted_material_name="air"
+        count_min="1"
+        count_max="3"
+        lifetime_min="0.5"
+        lifetime_max="1.0"
+        is_emitting="1">
+    </ParticleEmitterComponent>
+</Entity>
 ```
 
 ### 4.6 init.lua 入口脚本
 
 ```lua
-dofile("mods/slow_enemies/files/scripts/main.lua")
+dofile_once("mods/slow_enemies/files/scripts/config.lua")
+
+local MOD_NAME = "SlowEnemies"
+local world_initialized = false
+local player_entity = nil
+local slow_field_entity = nil
+
+function ModMain()
+    LoadConfig()
+    print(string.format("[%s] Mod initialized", MOD_NAME))
+end
 
 function OnModPreInit()
-
+    ModMain()
 end
 
-function OnModInit()
-
-end
-
-function OnModPostInit()
-
-end
-
-function OnPlayerSpawned(player_entity)
-
+function OnPlayerSpawned(p_entity)
+    player_entity = p_entity
+    local x, y = EntityGetTransform(p_entity)
+    slow_field_entity = EntityLoad("mods/slow_enemies/files/entities/slow_field.xml", x, y)
+    print(string.format("[%s] Created slow field at (%.0f, %.0f)", MOD_NAME, x, y))
 end
 
 function OnWorldInitialized()
-
+    world_initialized = true
 end
 
 function OnWorldPreUpdate()
-
-end
-
-function OnWorldPostUpdate()
-
+    if not world_initialized then return end
+    if slow_field_entity and player_entity and EntityGetIsAlive(player_entity) then
+        local px, py = EntityGetTransform(player_entity)
+        EntitySetTransform(slow_field_entity, px, py)
+    end
 end
 ```
 
@@ -525,19 +505,54 @@ GameGetFrameNum() -> int
 
 ## 十、总结
 
-本模组的技术实现基于 Noita 成熟的实体组件系统和 Lua 脚本挂载机制，核心功能完全可行。主要技术要点包括：
+### ❌ 不可行的方法
 
-1. 使用 `OnEntityCreated` 挂接函数监听实体创建事件
-2. 使用 `EntityGetFirstComponent` 获取目标组件
-3. 使用 `ComponentGetValue2` 和 `ComponentSetValue2` 读取/修改组件值
-4. 通过标签和 `mWhoShot` 属性区分玩家与敌人实体
-5. 混合使用立即处理和 Update 循环确保修改生效
+以下方法在实践中被发现**不可行**：
 
-**关键API更正**：
-- 不存在 `EntityModify` 函数
-- 不存在 `EntitySetComponentValue` 函数
-- 使用 `ComponentGetValue2(component_id, field_name)` 而非 `ComponentGetValue2(entity_id, component_name, field_name)`
-- 投射物发射者字段为 `mWhoShot` 而非 `m_shooter_entity_id`
-- 速度向量字段为 `mVelocity`（vec2 类型）
+1. **直接修改 VelocityComponent.mVelocity**
+   - Noita 的 AI 系统会在每帧重置速度值
+   - 导致修改被覆盖或无限循环
+
+2. **直接修改 CharacterPlatformingComponent.run_velocity**
+   - 同样会被 AI 系统每帧重置
+   - 无法实现持续减速
+
+3. **OnEntityCreated + 一次性修改**
+   - 实体创建时的修改会在后续帧被覆盖
+   - 需要持续维护但性能开销大
+
+### ✅ 最终实现方案
+
+**慢速场（Slow Field）方案**：
+
+1. 创建跟随玩家的慢速场实体
+2. 每4帧检测范围内敌人和投射物
+3. 对敌人应用游戏内置减速效果：
+   - `INTERNAL_ICE` - 内部结冰减速
+   - `MOVEMENT_SLOWER` - 直接减速
+4. 对投射物直接修改 ProjectileComponent 和 VelocityComponent
+5. 持续刷新效果保持减速
+
+### 使用的游戏效果
+
+| 效果 | 实体文件 | 描述 |
+|------|----------|------|
+| INTERNAL_ICE | effect_internal_ice.xml | 内部结冰，中等减速 |
+| MOVEMENT_SLOWER | effect_movement_slower.xml | 直接减速 |
+
+### 关键API
+
+```lua
+-- 实体检测
+EntityGetInRadiusWithTag(x, y, radius, tag)
+
+-- 效果应用
+EntityLoad("data/entities/misc/effect_internal_ice.xml")
+EntityAddChild(entity_id, effect_entity)
+
+-- 效果刷新
+ComponentGetValue2(effect_comp, "effect")
+ComponentSetValue2(effect_comp, "frames", 600)
+```
 
 预计开发周期为 2-3 周，包括功能实现、测试优化和文档编写。首发版本可以提供稳定的核心功能，后续版本根据用户反馈逐步添加新特性。
