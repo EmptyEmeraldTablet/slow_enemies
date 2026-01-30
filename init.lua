@@ -148,7 +148,7 @@ function process_entity(entity_id)
     if not IsEnabled() then
         return
     end
-    if not EntityExists(entity_id) then
+    if not EntityGetIsAlive(entity_id) then
         return
     end
 
@@ -190,7 +190,7 @@ end
 
 function cleanup_processed()
     for eid, _ in pairs(processed_entities) do
-        if not EntityExists(eid) then
+        if not EntityGetIsAlive(eid) then
             processed_entities[eid] = nil
         end
     end
