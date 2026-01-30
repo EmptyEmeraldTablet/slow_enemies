@@ -82,52 +82,54 @@ function modify_enemy_platforming(entity_id)
 
     -- run_velocity
     local run_vel = ComponentGetValue2(comp, "run_velocity")
-    if run_vel == nil then run_vel = 0 end
 
     if orig.run_velocity == nil then
         orig.run_velocity = run_vel
+        if IsDebugEnabled() then
+            print(string.format("[SlowEnemies] Save orig run=%.1f for entity %d", run_vel or 0, entity_id))
+        end
     end
 
-    if run_vel > 0 and run_vel > orig.run_velocity * 0.5 then
+    if run_vel ~= nil and run_vel > 0 and run_vel > orig.run_velocity * 0.5 then
         ComponentSetValue2(comp, "run_velocity", run_vel * speed_mult)
         modified = true
+        if IsDebugEnabled() then
+            print(string.format("[SlowEnemies] Modify entity %d: run=%.1f->%.1f", entity_id, run_vel, run_vel * speed_mult))
+        end
     end
 
     -- velocity_max_x
     local max_vel_x = ComponentGetValue2(comp, "velocity_max_x")
-    if max_vel_x == nil then max_vel_x = 0 end
 
     if orig.velocity_max_x == nil then
         orig.velocity_max_x = max_vel_x
     end
 
-    if math.abs(max_vel_x) > 1 and math.abs(max_vel_x) > math.abs(orig.velocity_max_x) * 0.5 then
+    if max_vel_x ~= nil and math.abs(max_vel_x) > 1 and math.abs(max_vel_x) > math.abs(orig.velocity_max_x) * 0.5 then
         ComponentSetValue2(comp, "velocity_max_x", max_vel_x * speed_mult)
         modified = true
     end
 
     -- accel_x
     local accel_x = ComponentGetValue2(comp, "accel_x")
-    if accel_x == nil then accel_x = 0 end
 
     if orig.accel_x == nil then
         orig.accel_x = accel_x
     end
 
-    if accel_x > 0.01 and accel_x > orig.accel_x * 0.5 then
+    if accel_x ~= nil and accel_x > 0.01 and accel_x > orig.accel_x * 0.5 then
         ComponentSetValue2(comp, "accel_x", accel_x * accel_mult)
         modified = true
     end
 
     -- fly_velocity_x
     local fly_vel_x = ComponentGetValue2(comp, "fly_velocity_x")
-    if fly_vel_x == nil then fly_vel_x = 0 end
 
     if orig.fly_velocity_x == nil then
         orig.fly_velocity_x = fly_vel_x
     end
 
-    if fly_vel_x > 0 and fly_vel_x > orig.fly_velocity_x * 0.5 then
+    if fly_vel_x ~= nil and fly_vel_x > 0 and fly_vel_x > orig.fly_velocity_x * 0.5 then
         ComponentSetValue2(comp, "fly_velocity_x", fly_vel_x * speed_mult)
         modified = true
     end
@@ -215,7 +217,15 @@ function process_all_entities()
         return
     end
 
+    local frame = GameGetFrameNum()
+
     local enemies = EntityGetWithTag("enemy")
+    local enemy_count = enemies and #enemies or 0
+
+    if frame % 60 == 0 and IsDebugEnabled() then
+        print(string.format("[SlowEnemies-Debug] Frame %d: found %d enemies", frame, enemy_count))
+    end
+
     if enemies ~= nil then
         for _, eid in ipairs(enemies) do
             process_entity(eid)
