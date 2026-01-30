@@ -1,6 +1,8 @@
 dofile("mods/slow_enemies/files/scripts/config.lua")
-dofile("mods/slow_enemies/files/scripts/util.lua")
+dofile("data/scripts/utilities.lua")
 
+local MOD_NAME = "SlowEnemies"
+local MOD_INIT_FLAG = MOD_NAME .. "_init_done"
 local processed_entities = {}
 local debug_frame_count = 0
 local debug_entity_count = 0
@@ -21,7 +23,7 @@ end
 
 function debug_mark_entity(entity_id, message, r, g, b)
     if IsDebugEnabled() then
-        local x, y = EntityGetPosition(entity_id)
+        local x, y = EntityGetTransform(entity_id)
         if x ~= nil and y ~= nil then
             DEBUG_MARK(x, y, message, r or 0, g or 1, b or 1)
         end
@@ -42,17 +44,17 @@ function debug_summary()
         count = count + 1
     end
 
-    log_debug("[SlowEnemies] ===== 调试统计 =====")
-    log_debug(string.format("[SlowEnemies] 总帧数: %d", debug_frame_count))
-    log_debug(string.format("[SlowEnemies] 减速实体数: %d", debug_entity_count))
-    log_debug(string.format("[SlowEnemies] 减速投射物数: %d", debug_projectile_count))
-    log_debug(string.format("[SlowEnemies] 待处理实体数: %d", count))
-    log_debug("[SlowEnemies] ====================")
+    log_debug("[SlowEnemies] ===== Debug Stats =====")
+    log_debug(string.format("  Frames: %d", debug_frame_count))
+    log_debug(string.format("  Slowed entities: %d", debug_entity_count))
+    log_debug(string.format("  Slowed projectiles: %d", debug_projectile_count))
+    log_debug(string.format("  Queue size: %d", count))
+    log_debug("[SlowEnemies] =========================")
 end
 
 function reduce_enemy_velocity(entity_id)
-    local velocity_comp = EntityGetFirstComponent(entity_id, "Velocity")
-    if velocity_comp == nil then
+    local comp = EntityGetFirstComponent(entity_id, "Velocity")
+    if comp == nil then
         return
     end
 
@@ -61,27 +63,25 @@ function reduce_enemy_velocity(entity_id)
         return
     end
 
-    local vx, vy = ComponentGetValue2(velocity_comp, "mVelocity")
+    local vx, vy = ComponentGetValue2(comp, "mVelocity")
     if vx == nil or vy == nil then
         return
     end
 
-    local new_vx = vx * mult
-    local new_vy = vy * mult
-    ComponentSetValue2(velocity_comp, "mVelocity", new_vx, new_vy)
+    ComponentSetValue2(comp, "mVelocity", vx * mult, vy * mult)
 
     debug_entity_count = debug_entity_count + 1
 
     if IsDebugEnabled() then
-        log_debug(string.format("[SlowEnemies] 减速实体 %d: (%.2f, %.2f) -> (%.2f, %.2f)",
-            entity_id, vx, vy, new_vx, new_vy))
+        log_debug(string.format("[SlowEnemies] Slowed entity %d: (%.2f, %.2f) -> (%.2f, %.2f)",
+            entity_id, vx, vy, vx * mult, vy * mult))
         debug_mark_entity(entity_id, "slow", 0, 1, 1)
     end
 end
 
 function reduce_projectile_speed(entity_id)
-    local projectile_comp = EntityGetFirstComponent(entity_id, "Projectile")
-    if projectile_comp == nil then
+    local comp = EntityGetFirstComponent(entity_id, "Projectile")
+    if comp == nil then
         return
     end
 
@@ -90,23 +90,81 @@ function reduce_projectile_speed(entity_id)
         return
     end
 
-    local speed_min = ComponentGetValue2(projectile_comp, "speed_min")
-    local speed_max = ComponentGetValue2(projectile_comp, "speed_max")
+    local speed_min = ComponentGetValue2(comp, "speed_min")
+    local speed_max = ComponentGetValue2(comp, "speed_max")
 
     if speed_min == nil or speed_max == nil then
         return
     end
 
-    ComponentSetValue2(projectile_comp, "speed_min", speed_min * mult)
-    ComponentSetValue2(projectile_comp, "speed_max", speed_max * mult)
+    ComponentSetValue2(comp, "speed_min", speed_min * mult)
+    ComponentSetValue2(comp, "speed_max", speed_max * mult)
 
     debug_projectile_count = debug_projectile_count + 1
 
     if IsDebugEnabled() then
-        log_debug(string.format("[SlowEnemies] 减速投射物 %d: [%.1f-%.1f] -> [%.1f-%.1f]",
+        log_debug(string.format("[SlowEnemies] Slowed projectile %d: [%.1f-%.1f] -> [%.1f-%.1f]",
             entity_id, speed_min, speed_max, speed_min * mult, speed_max * mult))
         debug_mark_entity(entity_id, "slow", 0, 1, 1)
     end
+end
+
+function is_enemy_entity(entity_id)
+    if entity_id == nil or entity_id == 0 then
+        return false
+    end
+
+    local is_player = false
+    local players = get_players()
+    if players ~= nil then
+        for _, player_id in ipairs(players) do
+            if player_id == entity_id then
+                is_player = true
+                break
+            end
+        end
+    end
+
+    if is_player then
+        return false
+    end
+
+    if EntityHasTag(entity_id, "enemy") then
+        return true
+    end
+    if EntityHasTag(entity_id, "mortal") then
+        return true
+    end
+    if EntityHasTag(entity_id, "character") then
+        return true
+    end
+
+    return false
+end
+
+function is_enemy_projectile(entity_id)
+    if entity_id == nil or entity_id == 0 then
+        return false
+    end
+
+    local comp = EntityGetFirstComponent(entity_id, "Projectile")
+    if comp == nil then
+        return false
+    end
+
+    local shooter = ComponentGetValue2(comp, "mWhoShot")
+    if shooter ~= nil and shooter ~= 0 then
+        local players = get_players()
+        if players ~= nil then
+            for _, player_id in ipairs(players) do
+                if player_id == shooter then
+                    return false
+                end
+            end
+        end
+    end
+
+    return true
 end
 
 function process_entity(entity_id)
@@ -118,10 +176,10 @@ function process_entity(entity_id)
         return
     end
 
-    if IsEnemyEntity(entity_id) then
+    if is_enemy_entity(entity_id) then
         reduce_enemy_velocity(entity_id)
         processed_entities[entity_id] = true
-    elseif IsEnemyProjectile(entity_id) then
+    elseif is_enemy_projectile(entity_id) then
         reduce_projectile_speed(entity_id)
         processed_entities[entity_id] = true
     end
@@ -141,14 +199,6 @@ function debug_update_screen()
 
     if debug_frame_count % 60 == 0 then
         local mx, my = debug_get_mouse_pos()
-        local player = get_player_entity()
-        local player_x, player_y = 0, 0
-        if player then
-            local ppos = EntityGetPosition(player)
-            if ppos then
-                player_x, player_y = ppos, ppos
-            end
-        end
 
         local count = 0
         for _ in pairs(processed_entities) do
@@ -209,14 +259,19 @@ end
 function ModMain()
     LoadConfig()
 
-    print("[SlowEnemies] 模组已加载")
-    print(string.format("  敌人速度倍率: %.2f", GetEnemySpeedMultiplier()))
-    print(string.format("  投射物速度倍率: %.2f", GetProjectileSpeedMultiplier()))
+    if GameHasFlagRun(MOD_INIT_FLAG) then
+        return
+    end
+    GameAddFlagRun(MOD_INIT_FLAG)
+
+    print("[SlowEnemies] Mod loaded")
+    print(string.format("  Enemy speed: %.2f", GetEnemySpeedMultiplier()))
+    print(string.format("  Projectile speed: %.2f", GetProjectileSpeedMultiplier()))
 
     if IsDebugEnabled() then
-        print("[SlowEnemies] 调试模式已启用")
-        print("  - 控制台: 查看详细日志输出")
-        print("  - 屏幕: 每60帧显示状态信息")
-        print("  - 世界: 被减速实体有青色标记")
+        print("[SlowEnemies] Debug mode enabled")
+        print("  - Console: detailed logs")
+        print("  - Screen: status every 60 frames")
+        print("  - World: slowed entities marked cyan")
     end
 end
