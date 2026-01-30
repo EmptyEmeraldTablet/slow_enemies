@@ -6,8 +6,8 @@ local frame = GameGetFrameNum()
 
     local config = {
         radius = 512,  -- 覆盖玩家可视范围
-        enemy_slow_mult = 0.1,
-        projectile_slow_mult = 0.1
+        enemy_slow_mult = 0.4,
+        projectile_slow_mult = 0.4
     }
 
 function is_player(entity_id)
