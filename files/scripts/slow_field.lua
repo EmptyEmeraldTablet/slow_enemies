@@ -4,11 +4,11 @@ local field_entity_id = GetUpdatedEntityID()
 local field_x, field_y = EntityGetTransform(field_entity_id)
 local frame = GameGetFrameNum()
 
-local config = {
-    radius = 1500,  -- 覆盖玩家可视范围（约10倍）
-    enemy_slow_mult = 0.1,
-    projectile_slow_mult = 0.1
-}
+    local config = {
+        radius = 512,  -- 覆盖玩家可视范围
+        enemy_slow_mult = 0.1,
+        projectile_slow_mult = 0.1
+    }
 
 function is_player(entity_id)
     if entity_id == nil or entity_id == 0 then
