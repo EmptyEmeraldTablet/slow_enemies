@@ -7,7 +7,6 @@ local debug_print_cooldown = 0
 local world_initialized = false
 local update_frame_counter = 0
 
--- Track processed entities and what components were modified
 local processed_entities = {}
 
 function get_players()
@@ -75,37 +74,60 @@ end
 function modify_enemy_platforming(entity_id)
     local comp = EntityGetFirstComponent(entity_id, "CharacterPlatformingComponent")
     if comp == nil then
+        if IsDebugEnabled() then
+            local has_physics = EntityGetFirstComponent(entity_id, "PhysicsAIComponent")
+            local has_vel = EntityGetFirstComponent(entity_id, "VelocityComponent")
+            print(string.format("[SlowEnemies-Debug] Entity %d has no CharPlatforming. PhysicsAI=%s, Vel=%s",
+                entity_id, tostring(has_physics ~= nil), tostring(has_vel ~= nil)))
+        end
         return false
     end
 
     local speed_mult = GetEnemySpeedMultiplier()
     local accel_mult = GetEnemyAccelMultiplier()
 
-    -- Modify run_velocity
+    local modified = false
+
+    -- run_velocity
     local run_vel = ComponentGetValue2(comp, "run_velocity")
     if run_vel and run_vel > 0 then
-        ComponentSetValue2(comp, "run_velocity", run_vel * speed_mult)
+        local new_val = run_vel * speed_mult
+        ComponentSetValue2(comp, "run_velocity", new_val)
+        modified = true
     end
 
-    -- Modify velocity_max_x
+    -- velocity_max_x
     local max_vel_x = ComponentGetValue2(comp, "velocity_max_x")
     if max_vel_x then
-        ComponentSetValue2(comp, "velocity_max_x", max_vel_x * speed_mult)
+        local new_val = max_vel_x * speed_mult
+        ComponentSetValue2(comp, "velocity_max_x", new_val)
+        modified = true
     end
 
-    -- Modify accel_x
+    -- accel_x
     local accel_x = ComponentGetValue2(comp, "accel_x")
     if accel_x and accel_x > 0 then
-        ComponentSetValue2(comp, "accel_x", accel_x * accel_mult)
+        local new_val = accel_x * accel_mult
+        ComponentSetValue2(comp, "accel_x", new_val)
+        modified = true
     end
 
-    -- Modify fly_velocity_x (for flying enemies)
+    -- fly_velocity_x
     local fly_vel_x = ComponentGetValue2(comp, "fly_velocity_x")
     if fly_vel_x and fly_vel_x > 0 then
-        ComponentSetValue2(comp, "fly_velocity_x", fly_vel_x * speed_mult)
+        local new_val = fly_vel_x * speed_mult
+        ComponentSetValue2(comp, "fly_velocity_x", new_val)
+        modified = true
     end
 
-    return true
+    if modified and IsDebugEnabled() then
+        local new_run = ComponentGetValue2(comp, "run_velocity")
+        local new_max = ComponentGetValue2(comp, "velocity_max_x")
+        print(string.format("[SlowEnemies] Modified entity %d: run=%.1f->%.1f, max=%.1f->%.1f",
+            entity_id, run_vel or 0, new_run or 0, max_vel_x or 0, new_max or 0))
+    end
+
+    return modified
 end
 
 function modify_enemy_ai(entity_id)
@@ -115,14 +137,16 @@ function modify_enemy_ai(entity_id)
     end
 
     local speed_mult = GetEnemySpeedMultiplier()
+    local modified = false
 
-    -- Modify attack_dash_speed
+    -- attack_dash_speed
     local dash_speed = ComponentGetValue2(comp, "attack_dash_speed")
     if dash_speed and dash_speed > 0 then
         ComponentSetValue2(comp, "attack_dash_speed", dash_speed * speed_mult)
+        modified = true
     end
 
-    return true
+    return modified
 end
 
 function modify_projectile(entity_id)
@@ -139,9 +163,10 @@ function modify_projectile(entity_id)
     if speed_min and speed_max then
         ComponentSetValue2(comp, "speed_min", speed_min * speed_mult)
         ComponentSetValue2(comp, "speed_max", speed_max * speed_mult)
+        return true
     end
 
-    return true
+    return false
 end
 
 function process_entity(entity_id)
@@ -160,29 +185,15 @@ function process_entity(entity_id)
             if not processed_entities[entity_id] then
                 processed_entities[entity_id] = { platforming = mod_platforming, ai = mod_ai }
                 debug_count = debug_count + 1
-                if IsDebugEnabled() then
-                    print(string.format("[SlowEnemies] Slowed enemy %d", entity_id))
-                end
-            else
-                -- Re-apply to counteract game resets
-                if mod_platforming then
-                    modify_enemy_platforming(entity_id)
-                end
-                if mod_ai then
-                    modify_enemy_ai(entity_id)
-                end
             end
         end
     elseif is_enemy_projectile(entity_id) then
         if not processed_entities[entity_id] then
             if modify_projectile(entity_id) then
                 processed_entities[entity_id] = { projectile = true }
-                if IsDebugEnabled() then
-                    print(string.format("[SlowEnemies] Slowed projectile %d", entity_id))
-                end
+                debug_count = debug_count + 1
             end
         else
-            -- Re-apply
             modify_projectile(entity_id)
         end
     end
@@ -201,7 +212,7 @@ function process_all_entities()
         return
     end
 
-    -- Process enemies with "enemy" tag
+    -- Process enemies
     local enemies = EntityGetWithTag("enemy")
     if enemies ~= nil then
         for _, eid in ipairs(enemies) do
@@ -209,7 +220,7 @@ function process_all_entities()
         end
     end
 
-    -- Process mortals (excluding items and corpses)
+    -- Process mortals
     local mortals = EntityGetWithTag("mortal")
     if mortals ~= nil then
         for _, eid in ipairs(mortals) do
@@ -239,7 +250,6 @@ function debug_output()
 
         local mx, my = DEBUG_GetMouseWorld()
 
-        -- Count current enemies
         local enemies = EntityGetWithTag("enemy")
         local enemy_count = enemies and #enemies or 0
 
@@ -262,7 +272,6 @@ function ModMain()
     print(string.format("  Enemy speed: %.2f", GetEnemySpeedMultiplier()))
     print(string.format("  Enemy accel: %.2f", GetEnemyAccelMultiplier()))
     print(string.format("  Projectile speed: %.2f", GetProjectileSpeedMultiplier()))
-    print(string.format("  Enabled: %s", tostring(IsEnabled())))
     print("========================================")
 end
 
@@ -284,7 +293,7 @@ end
 
 function OnWorldInitialized()
     world_initialized = true
-    print("[SlowEnemies] World initialized")
+    print("[SlowEnemies] World initialized - ready to slow enemies")
 end
 
 function OnWorldPreUpdate()
@@ -297,15 +306,27 @@ function OnWorldPreUpdate()
     -- Process all entities
     process_all_entities()
 
+    -- Re-apply to counteract game resets (every frame for enemies)
+    for eid, flags in pairs(processed_entities) do
+        if EntityGetIsAlive(eid) then
+            if flags.platforming then
+                modify_enemy_platforming(eid)
+            end
+            if flags.ai then
+                modify_enemy_ai(eid)
+            end
+            if flags.projectile then
+                modify_projectile(eid)
+            end
+        end
+    end
+
     -- Cleanup every 60 frames
     if update_frame_counter % 60 == 0 then
         cleanup_processed()
     end
 
-    -- Debug output
-    if IsDebugEnabled() then
-        debug_output()
-    end
+    debug_output()
 end
 
 function OnWorldPostUpdate()
