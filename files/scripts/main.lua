@@ -28,67 +28,6 @@ function debug_mark_entity(entity_id, message, r, g, b)
     end
 end
 
-function debug_get_mouse_pos()
-    return DEBUG_GetMouseWorld()
-end
-
-function reduce_enemy_velocity(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "Velocity")
-    if comp == nil then
-        return
-    end
-
-    local mult = GetEnemySpeedMultiplier()
-    if mult >= 1.0 then
-        return
-    end
-
-    local vx, vy = ComponentGetValue2(comp, "mVelocity")
-    if vx == nil or vy == nil then
-        return
-    end
-
-    ComponentSetValue2(comp, "mVelocity", vx * mult, vy * mult)
-
-    debug_entity_count = debug_entity_count + 1
-
-    if IsDebugEnabled() then
-        log_debug(string.format("[SlowEnemies] Slowed entity %d: (%.2f, %.2f) -> (%.2f, %.2f)",
-            entity_id, vx, vy, vx * mult, vy * mult))
-        debug_mark_entity(entity_id, "slow", 0, 1, 1)
-    end
-end
-
-function reduce_projectile_speed(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "Projectile")
-    if comp == nil then
-        return
-    end
-
-    local mult = GetProjectileSpeedMultiplier()
-    if mult >= 1.0 then
-        return
-    end
-
-    local speed_min = ComponentGetValue2(comp, "speed_min")
-    local speed_max = ComponentGetValue2(comp, "speed_max")
-
-    if speed_min == nil or speed_max == nil then
-        return
-    end
-
-    ComponentSetValue2(comp, "speed_min", speed_min * mult)
-    ComponentSetValue2(comp, "speed_max", speed_max * mult)
-
-    debug_projectile_count = debug_projectile_count + 1
-
-    if IsDebugEnabled() then
-        log_debug(string.format("[SlowEnemies] Slowed projectile %d: [%.1f-%.1f] -> [%.1f-%.1f]",
-            entity_id, speed_min, speed_max, speed_min * mult, speed_max * mult))
-        debug_mark_entity(entity_id, "slow", 0, 1, 1)
-    end
-end
-
 function get_players()
     return EntityGetWithTag("player_unit")
 end
@@ -137,7 +76,7 @@ function is_enemy_projectile(entity_id)
         return false
     end
 
-    local comp = EntityGetFirstComponent(entity_id, "Projectile")
+    local comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
     if comp == nil then
         return false
     end
@@ -152,24 +91,60 @@ function is_enemy_projectile(entity_id)
     return true
 end
 
+function reduce_enemy_velocity(entity_id)
+    local comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
+    if comp == nil then
+        return
+    end
+
+    local mult = GetEnemySpeedMultiplier()
+    if mult >= 1.0 then
+        return
+    end
+
+    local vx, vy = ComponentGetValue2(comp, "mVelocity")
+    if vx == nil or vy == nil then
+        return
+    end
+
+    ComponentSetValue2(comp, "mVelocity", vx * mult, vy * mult)
+
+    debug_entity_count = debug_entity_count + 1
+end
+
+function reduce_projectile_speed(entity_id)
+    local comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
+    if comp == nil then
+        return
+    end
+
+    local mult = GetProjectileSpeedMultiplier()
+    if mult >= 1.0 then
+        return
+    end
+
+    local speed_min = ComponentGetValue2(comp, "speed_min")
+    local speed_max = ComponentGetValue2(comp, "speed_max")
+
+    if speed_min == nil or speed_max == nil then
+        return
+    end
+
+    ComponentSetValue2(comp, "speed_min", speed_min * mult)
+    ComponentSetValue2(comp, "speed_max", speed_max * mult)
+
+    debug_projectile_count = debug_projectile_count + 1
+end
+
 function process_entity(entity_id)
     if not IsEnabled() then
         return
     end
 
-    if processed_entities[entity_id] then
-        return
-    end
-
-    local is_enemy = is_enemy_entity(entity_id)
-    local is_proj = is_enemy_projectile(entity_id)
-
-    if is_enemy then
+    if is_enemy_entity(entity_id) then
         reduce_enemy_velocity(entity_id)
-        processed_entities[entity_id] = true
-    elseif is_proj then
+    elseif is_enemy_projectile(entity_id) then
         reduce_projectile_speed(entity_id)
-        processed_entities[entity_id] = true
     end
 end
 
@@ -183,30 +158,13 @@ function debug_update_screen()
     if debug_print_cooldown >= 60 then
         debug_print_cooldown = 0
 
-        local mx, my = debug_get_mouse_pos()
-
-        local count = 0
-        for _ in pairs(processed_entities) do
-            count = count + 1
-        end
+        local mx, my = DEBUG_GetMouseWorld()
 
         local status = string.format(
-            "[SlowEnemies] e:%d p:%d q:%d m:(%.0f,%.0f)",
-            debug_entity_count, debug_projectile_count, count, mx or 0, my or 0
+            "[SlowEnemies] e:%d p:%d m:(%.0f,%.0f)",
+            debug_entity_count, debug_projectile_count, mx or 0, my or 0
         )
         screen_debug(status)
-    end
-end
-
-function cleanup_processed_list()
-    local to_remove = {}
-    for entity_id, _ in pairs(processed_entities) do
-        if not EntityGetIsAlive(entity_id) then
-            table.insert(to_remove, entity_id)
-        end
-    end
-    for _, entity_id in ipairs(to_remove) do
-        processed_entities[entity_id] = nil
     end
 end
 
@@ -227,7 +185,10 @@ function _Update()
     debug_update_screen()
 
     if GameGetFrameNum() % 300 == 0 then
-        cleanup_processed_list()
+        if IsDebugEnabled() then
+            print(string.format("[SlowEnemies] Frame %d: processed %d entities, %d projectiles",
+                GameGetFrameNum(), debug_entity_count, debug_projectile_count))
+        end
     end
 end
 
