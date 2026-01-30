@@ -43,8 +43,11 @@ function is_player_projectile(entity_id)
 end
 
 function slow_enemy(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
-    if comp == nil then
+    if not IsEnabled() then
+        return false
+    end
+
+    if is_player_entity(entity_id) then
         return false
     end
 
@@ -53,22 +56,57 @@ function slow_enemy(entity_id)
         return false
     end
 
-    local vx, vy = ComponentGetValue2(comp, "mVelocity")
-    if vx == nil or vy == nil then
-        return false
+    local modified = false
+
+    -- Method 1: Modify PhysicsAIComponent force
+    local physics_ai = EntityGetFirstComponent(entity_id, "PhysicsAIComponent")
+    if physics_ai ~= nil then
+        local force_coeff = ComponentGetValue2(physics_ai, "force_coeff")
+        if force_coeff ~= nil then
+            ComponentSetValue2(physics_ai, "force_coeff", force_coeff * mult)
+            modified = true
+        end
     end
 
-    -- Calculate target velocity (apply multiplier)
-    local new_vx = vx * mult
-    local new_vy = vy * mult
+    -- Method 2: Modify VelocityComponent (if exists and moving)
+    local velocity = EntityGetFirstComponent(entity_id, "VelocityComponent")
+    if velocity ~= nil then
+        local vx, vy = ComponentGetValue2(velocity, "mVelocity")
+        if vx ~= nil and vy ~= nil then
+            local speed = math.sqrt(vx * vx + vy * vy)
+            if speed > 1 then
+                ComponentSetValue2(velocity, "mVelocity", vx * mult, vy * mult)
+                modified = true
+            end
+        end
+    end
 
-    -- Set the modified velocity
-    ComponentSetValue2(comp, "mVelocity", new_vx, new_vy)
+    -- Method 3: Modify CharacterPlatformingComponent max_speed
+    local char_platform = EntityGetFirstComponent(entity_id, "CharacterPlatformingComponent")
+    if char_platform ~= nil then
+        local max_speed = ComponentGetValue2(char_platform, "max_speed")
+        if max_speed ~= nil then
+            ComponentSetValue2(char_platform, "max_speed", max_speed * mult)
+            modified = true
+        end
+    end
 
-    return true
+    if modified then
+        debug_entity_count = debug_entity_count + 1
+    end
+
+    return modified
 end
 
 function slow_projectile(entity_id)
+    if not IsEnabled() then
+        return false
+    end
+
+    if is_player_projectile(entity_id) then
+        return false
+    end
+
     local comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
     if comp == nil then
         return false
@@ -89,6 +127,7 @@ function slow_projectile(entity_id)
     ComponentSetValue2(comp, "speed_min", speed_min * mult)
     ComponentSetValue2(comp, "speed_max", speed_max * mult)
 
+    debug_projectile_count = debug_projectile_count + 1
     return true
 end
 
@@ -100,15 +139,10 @@ function process_enemies()
     local enemies = EntityGetWithTag("enemy")
     if enemies ~= nil then
         for _, entity_id in ipairs(enemies) do
-            if not is_player_entity(entity_id) then
-                if slow_enemy(entity_id) then
-                    debug_entity_count = debug_entity_count + 1
-                end
-            end
+            slow_enemy(entity_id)
         end
     end
 
-    -- Also process mortals (excluding items and corpses)
     local mortals = EntityGetWithTag("mortal")
     if mortals ~= nil then
         for _, entity_id in ipairs(mortals) do
@@ -116,9 +150,7 @@ function process_enemies()
                and not EntityHasTag(entity_id, "item")
                and not EntityHasTag(entity_id, "corpse")
                and not EntityHasTag(entity_id, "dead") then
-                if slow_enemy(entity_id) then
-                    debug_entity_count = debug_entity_count + 1
-                end
+                slow_enemy(entity_id)
             end
         end
     end
@@ -132,11 +164,7 @@ function process_projectiles()
     local projectiles = EntityGetWithTag("projectile")
     if projectiles ~= nil then
         for _, entity_id in ipairs(projectiles) do
-            if not is_player_projectile(entity_id) then
-                if slow_projectile(entity_id) then
-                    debug_projectile_count = debug_projectile_count + 1
-                end
-            end
+            slow_projectile(entity_id)
         end
     end
 end
@@ -178,7 +206,6 @@ function OnWorldPreUpdate()
         return
     end
 
-    -- Process every frame for continuous application
     process_enemies()
     process_projectiles()
 
@@ -186,14 +213,7 @@ function OnWorldPreUpdate()
     if debug_print_cooldown >= 60 then
         debug_print_cooldown = 0
 
-        local frame = GameGetFrameNum()
         local mx, my = DEBUG_GetMouseWorld()
-
-        local enemies = EntityGetWithTag("enemy")
-        local enemy_count = enemies and #enemies or 0
-
-        local projectiles = EntityGetWithTag("projectile")
-        local projectile_count = projectiles and #projectiles or 0
 
         local status = string.format(
             "[SlowEnemies] e=%d p=%d m=(%.0f,%.0f)",
