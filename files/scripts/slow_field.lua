@@ -59,38 +59,16 @@ function get_distance(x1, y1, x2, y2)
     return math.sqrt(dx * dx + dy * dy)
 end
 
-function slow_enemy(entity_id, slow_mult)
-    local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
-    if vel_comp ~= nil then
-        local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
-        if vx ~= nil and vy ~= nil then
-            local speed = math.sqrt(vx * vx + vy * vy)
-            if speed > 1 then
-                local new_speed = speed * slow_mult
-                local new_vx = (vx / speed) * new_speed
-                local new_vy = (vy / speed) * new_speed
-                ComponentSetValue2(vel_comp, "mVelocity", new_vx, new_vy)
-            end
-        end
+function apply_slow_effect(entity_id)
+    if EntityHasTag(entity_id, "slowed") then
+        return
     end
 
-    local char_comp = EntityGetFirstComponent(entity_id, "CharacterPlatformingComponent")
-    if char_comp ~= nil then
-        local run_vel = ComponentGetValue2(char_comp, "run_velocity")
-        if run_vel ~= nil then
-            ComponentSetValue2(char_comp, "run_velocity", run_vel * slow_mult)
-        end
+    EntityAddTag(entity_id, "slowed")
 
-        local fly_speed = ComponentGetValue2(char_comp, "fly_speed_max_up")
-        if fly_speed ~= nil then
-            ComponentSetValue2(char_comp, "fly_speed_max_up", fly_speed * slow_mult)
-            ComponentSetValue2(char_comp, "fly_speed_max_down", fly_speed * slow_mult)
-        end
-
-        local fly_mult = ComponentGetValue2(char_comp, "fly_speed_mult")
-        if fly_mult ~= nil then
-            ComponentSetValue2(char_comp, "fly_speed_mult", fly_mult * slow_mult)
-        end
+    local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
+    if effect_entity ~= nil and effect_entity ~= 0 then
+        EntityAddChild(entity_id, effect_entity)
     end
 end
 
@@ -130,13 +108,7 @@ if config.radius > 0 then
             local dist = get_distance(field_x, field_y, ex, ey)
 
             if dist < config.radius then
-                local dist_factor = 1.0 - (dist / config.radius)
-                dist_factor = math.max(dist_factor, 0.01)
-
-                local slow_mult = 1.0 - (dist_factor * (1.0 - config.enemy_slow_mult))
-                slow_mult = math.max(slow_mult, 0.1)
-
-                slow_enemy(enemy_id, slow_mult)
+                apply_slow_effect(enemy_id)
             end
         end
     end
@@ -151,13 +123,7 @@ if config.radius > 0 then
             local dist = get_distance(field_x, field_y, ex, ey)
 
             if dist < config.radius then
-                local dist_factor = 1.0 - (dist / config.radius)
-                dist_factor = math.max(dist_factor, 0.01)
-
-                local slow_mult = 1.0 - (dist_factor * (1.0 - config.enemy_slow_mult))
-                slow_mult = math.max(slow_mult, 0.1)
-
-                slow_enemy(enemy_id, slow_mult)
+                apply_slow_effect(enemy_id)
             end
         end
     end
