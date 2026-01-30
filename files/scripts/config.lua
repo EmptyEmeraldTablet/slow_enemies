@@ -2,7 +2,6 @@
 local MOD_CONFIG = {
     enabled = true,
     enemy_speed_multiplier = 0.1,  -- 10% speed for obvious effect
-    enemy_accel_multiplier = 0.1,  -- 10% acceleration
     projectile_speed_multiplier = 0.1,  -- 10% speed for obvious effect
     debug = true
 }
@@ -17,10 +16,6 @@ end
 
 function GetEnemySpeedMultiplier()
     return MOD_CONFIG.enemy_speed_multiplier
-end
-
-function GetEnemyAccelMultiplier()
-    return MOD_CONFIG.enemy_accel_multiplier
 end
 
 function GetProjectileSpeedMultiplier()

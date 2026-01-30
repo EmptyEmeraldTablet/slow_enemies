@@ -2,281 +2,15 @@ dofile_once("mods/slow_enemies/files/scripts/config.lua")
 
 local MOD_NAME = "SlowEnemies"
 local MOD_INIT_FLAG = MOD_NAME .. "_init_done"
-local debug_count = 0
-local debug_print_cooldown = 0
 local world_initialized = false
+local player_entity = nil
+local slow_field_entity = nil
 
--- Store original values for each entity
-local entity_original_values = {}
-
-function get_players()
-    return EntityGetWithTag("player_unit")
-end
-
-function is_player_entity(entity_id)
+function is_player(entity_id)
     if entity_id == nil or entity_id == 0 then
         return false
     end
-    local players = get_players()
-    if players ~= nil then
-        for _, pid in ipairs(players) do
-            if pid == entity_id then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-function is_enemy_entity(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    if is_player_entity(entity_id) then
-        return false
-    end
-    if EntityHasTag(entity_id, "enemy") then
-        return true
-    end
-    if EntityHasTag(entity_id, "mortal") and not EntityHasTag(entity_id, "item") then
-        return true
-    end
-    if EntityHasTag(entity_id, "character") then
-        return true
-    end
-    return false
-end
-
-function is_enemy_projectile(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    local comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
-    if comp == nil then
-        return false
-    end
-    local shooter = ComponentGetValue2(comp, "mWhoShot")
-    if shooter ~= nil and shooter ~= 0 then
-        if is_player_entity(shooter) then
-            return false
-        end
-    end
-    return true
-end
-
-function modify_enemy_platforming(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "CharacterPlatformingComponent")
-    if comp == nil then
-        return false
-    end
-
-    local speed_mult = GetEnemySpeedMultiplier()
-    local accel_mult = GetEnemyAccelMultiplier()
-    local modified = false
-
-    -- Get or save original values
-    if not entity_original_values[entity_id] then
-        entity_original_values[entity_id] = {}
-    end
-    local orig = entity_original_values[entity_id]
-
-    -- run_velocity
-    local run_vel = ComponentGetValue2(comp, "run_velocity")
-
-    if orig.run_velocity == nil then
-        orig.run_velocity = run_vel
-        if IsDebugEnabled() then
-            print(string.format("[SlowEnemies] Save orig run=%.1f for entity %d", run_vel or 0, entity_id))
-        end
-    end
-
-    if run_vel ~= nil and run_vel > 0 and run_vel > orig.run_velocity * 0.5 then
-        ComponentSetValue2(comp, "run_velocity", run_vel * speed_mult)
-        modified = true
-        if IsDebugEnabled() then
-            print(string.format("[SlowEnemies] Modify entity %d: run=%.1f->%.1f", entity_id, run_vel, run_vel * speed_mult))
-        end
-    end
-
-    -- velocity_max_x
-    local max_vel_x = ComponentGetValue2(comp, "velocity_max_x")
-
-    if orig.velocity_max_x == nil then
-        orig.velocity_max_x = max_vel_x
-    end
-
-    if max_vel_x ~= nil and math.abs(max_vel_x) > 1 and math.abs(max_vel_x) > math.abs(orig.velocity_max_x) * 0.5 then
-        ComponentSetValue2(comp, "velocity_max_x", max_vel_x * speed_mult)
-        modified = true
-    end
-
-    -- accel_x
-    local accel_x = ComponentGetValue2(comp, "accel_x")
-
-    if orig.accel_x == nil then
-        orig.accel_x = accel_x
-    end
-
-    if accel_x ~= nil and accel_x > 0.01 and accel_x > orig.accel_x * 0.5 then
-        ComponentSetValue2(comp, "accel_x", accel_x * accel_mult)
-        modified = true
-    end
-
-    -- fly_velocity_x
-    local fly_vel_x = ComponentGetValue2(comp, "fly_velocity_x")
-
-    if orig.fly_velocity_x == nil then
-        orig.fly_velocity_x = fly_vel_x
-    end
-
-    if fly_vel_x ~= nil and fly_vel_x > 0 and fly_vel_x > orig.fly_velocity_x * 0.5 then
-        ComponentSetValue2(comp, "fly_velocity_x", fly_vel_x * speed_mult)
-        modified = true
-    end
-
-    return modified
-end
-
-function modify_enemy_ai(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "AnimalAIComponent")
-    if comp == nil then
-        return false
-    end
-
-    local speed_mult = GetEnemySpeedMultiplier()
-    local dash_speed = ComponentGetValue2(comp, "attack_dash_speed")
-
-    if dash_speed == nil then dash_speed = 0 end
-
-    if dash_speed > 1 then
-        ComponentSetValue2(comp, "attack_dash_speed", dash_speed * speed_mult)
-        return true
-    end
-
-    return false
-end
-
-function modify_projectile(entity_id)
-    local comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
-    if comp == nil then
-        return false
-    end
-
-    local speed_mult = GetProjectileSpeedMultiplier()
-    local speed_min = ComponentGetValue2(comp, "speed_min")
-    local speed_max = ComponentGetValue2(comp, "speed_max")
-
-    if speed_min and speed_max then
-        ComponentSetValue2(comp, "speed_min", speed_min * speed_mult)
-        ComponentSetValue2(comp, "speed_max", speed_max * speed_mult)
-        return true
-    end
-
-    return false
-end
-
-function process_entity(entity_id)
-    if not IsEnabled() then
-        return
-    end
-    if not EntityGetIsAlive(entity_id) then
-        return
-    end
-
-    if is_enemy_entity(entity_id) then
-        local mod1 = modify_enemy_platforming(entity_id)
-        local mod2 = modify_enemy_ai(entity_id)
-        if mod1 or mod2 then
-            debug_count = debug_count + 1
-        end
-    elseif is_enemy_projectile(entity_id) then
-        if modify_projectile(entity_id) then
-            debug_count = debug_count + 1
-        end
-    end
-end
-
-function cleanup()
-    local frame = GameGetFrameNum()
-    if frame % 300 == 0 then
-        -- Clean up dead entities from our tracking
-        local to_remove = {}
-        for eid, _ in pairs(entity_original_values) do
-            if not EntityGetIsAlive(eid) then
-                table.insert(to_remove, eid)
-            end
-        end
-        for _, eid in ipairs(to_remove) do
-            entity_original_values[eid] = nil
-        end
-    end
-end
-
-function process_all_entities()
-    if not IsEnabled() then
-        return
-    end
-
-    local frame = GameGetFrameNum()
-
-    local enemies = EntityGetWithTag("enemy")
-    local enemy_count = enemies and #enemies or 0
-
-    if frame % 60 == 0 and IsDebugEnabled() then
-        print(string.format("[SlowEnemies-Debug] Frame %d: found %d enemies", frame, enemy_count))
-    end
-
-    if enemies ~= nil then
-        for _, eid in ipairs(enemies) do
-            process_entity(eid)
-        end
-    end
-
-    local mortals = EntityGetWithTag("mortal")
-    if mortals ~= nil then
-        for _, eid in ipairs(mortals) do
-            if not is_player_entity(eid)
-               and not EntityHasTag(eid, "item")
-               and not EntityHasTag(eid, "corpse")
-               and not EntityHasTag(eid, "dead") then
-                process_entity(eid)
-            end
-        end
-    end
-
-    local projectiles = EntityGetWithTag("projectile")
-    if projectiles ~= nil then
-        for _, eid in ipairs(projectiles) do
-            process_entity(eid)
-        end
-    end
-end
-
-function debug_output()
-    debug_print_cooldown = debug_print_cooldown + 1
-
-    if debug_print_cooldown >= 120 then
-        debug_print_cooldown = 0
-
-        local mx, my = DEBUG_GetMouseWorld()
-
-        local enemies = EntityGetWithTag("enemy")
-        local enemy_count = enemies and #enemies or 0
-
-        local projectiles = EntityGetWithTag("projectile")
-        local projectile_count = projectiles and #projectiles or 0
-
-        local tracking_count = 0
-        for _ in pairs(entity_original_values) do
-            tracking_count = tracking_count + 1
-        end
-
-        local status = string.format(
-            "[SlowEnemies] mods=%d track=%d e=%d p=%d m=(%.0f,%.0f)",
-            debug_count, tracking_count, enemy_count, projectile_count, mx or 0, my or 0
-        )
-        GamePrint(status)
-    end
+    return EntityHasTag(entity_id, "player_unit")
 end
 
 function ModMain()
@@ -285,8 +19,8 @@ function ModMain()
     print("========================================")
     print(string.format("[%s] Mod initializing...", MOD_NAME))
     print(string.format("  Enemy speed: %.2f", GetEnemySpeedMultiplier()))
-    print(string.format("  Enemy accel: %.2f", GetEnemyAccelMultiplier()))
     print(string.format("  Projectile speed: %.2f", GetProjectileSpeedMultiplier()))
+    print("  Mode: Slow Field around player")
     print("========================================")
 end
 
@@ -302,13 +36,18 @@ function OnModPostInit()
 
 end
 
-function OnPlayerSpawned(player_entity)
+function OnPlayerSpawned(p_entity)
+    player_entity = p_entity
 
+    local x, y = EntityGetTransform(p_entity)
+
+    slow_field_entity = EntityLoad("mods/slow_enemies/files/entities/slow_field.xml", x, y)
+
+    print(string.format("[%s] Created slow field at (%.0f, %.0f)", MOD_NAME, x, y))
 end
 
 function OnWorldInitialized()
     world_initialized = true
-    print("[SlowEnemies] World initialized")
 end
 
 function OnWorldPreUpdate()
@@ -316,10 +55,10 @@ function OnWorldPreUpdate()
         return
     end
 
-    -- Process entities every frame to counteract game resets
-    process_all_entities()
-    cleanup()
-    debug_output()
+    if slow_field_entity and player_entity and EntityGetIsAlive(player_entity) then
+        local px, py = EntityGetTransform(player_entity)
+        EntitySetTransform(slow_field_entity, px, py)
+    end
 end
 
 function OnWorldPostUpdate()

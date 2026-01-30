@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Entity tags="slow_field">
+
+    <InheritTransformComponent>
+    </InheritTransformComponent>
+
+    <LuaComponent
+        execute_every_n_frame="2"
+        script_source_file="mods/slow_enemies/files/scripts/slow_field.lua"
+    >
+    </LuaComponent>
+
+    <ParticleEmitterComponent
+        emitted_material_name="magic_liquid_teleport"
+        count_min="1"
+        count_max="3"
+        lifetime_min="0.5"
+        lifetime_max="1.0"
+        is_emitting="1"
+    >
+    </ParticleEmitterComponent>
+
+</Entity>
