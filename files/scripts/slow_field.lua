@@ -60,8 +60,8 @@ function get_distance(x1, y1, x2, y2)
 end
 
 function apply_slow_effect(entity_id)
-    local has_effect = false
-    local effect_to_use = "INTERNAL_ICE"
+    local has_internal_ice = false
+    local has_movement_slower = false
 
     local children = EntityGetAllChildren(entity_id)
     if children ~= nil then
@@ -69,17 +69,26 @@ function apply_slow_effect(entity_id)
             local effect_comp = EntityGetFirstComponent(child_id, "GameEffectComponent")
             if effect_comp ~= nil then
                 local effect_type = ComponentGetValue2(effect_comp, "effect")
-                if effect_type == effect_to_use or effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
-                    has_effect = true
+                if effect_type == "INTERNAL_ICE" then
+                    has_internal_ice = true
                     ComponentSetValue2(effect_comp, "frames", 600)
-                    break
+                elseif effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
+                    has_movement_slower = true
+                    ComponentSetValue2(effect_comp, "frames", 600)
                 end
             end
         end
     end
 
-    if not has_effect then
+    if not has_internal_ice then
         local effect_entity = EntityLoad("data/entities/misc/effect_internal_ice.xml")
+        if effect_entity ~= nil and effect_entity ~= 0 then
+            EntityAddChild(entity_id, effect_entity)
+        end
+    end
+
+    if not has_movement_slower then
+        local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
         if effect_entity ~= nil and effect_entity ~= 0 then
             EntityAddChild(entity_id, effect_entity)
         end
