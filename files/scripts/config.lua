@@ -1,9 +1,9 @@
 -- Configuration (hardcoded)
 local MOD_CONFIG = {
     enabled = true,
-    enemy_speed_multiplier = 0.7,
-    enemy_accel_multiplier = 0.7,
-    projectile_speed_multiplier = 0.6,
+    enemy_speed_multiplier = 0.1,  -- 10% speed for obvious effect
+    enemy_accel_multiplier = 0.1,  -- 10% acceleration
+    projectile_speed_multiplier = 0.1,  -- 10% speed for obvious effect
     debug = true
 }
 
