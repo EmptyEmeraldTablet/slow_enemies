@@ -1,17 +1,13 @@
--- Configuration (hardcoded, no file I/O)
+-- Configuration (hardcoded)
 local MOD_CONFIG = {
     enabled = true,
     enemy_speed_multiplier = 0.7,
     projectile_speed_multiplier = 0.6,
-    debug = false
+    debug = true  -- Enable debug for troubleshooting
 }
 
 function LoadConfig()
-    -- Config is hardcoded above
-end
-
-function SaveConfig()
-    -- Not implemented (would require file I/O)
+    -- Config is hardcoded
 end
 
 function IsEnabled()
