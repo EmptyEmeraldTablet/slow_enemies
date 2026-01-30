@@ -61,6 +61,7 @@ end
 
 function apply_slow_effect(entity_id)
     local has_effect = false
+    local effect_to_use = "INTERNAL_ICE"
 
     local children = EntityGetAllChildren(entity_id)
     if children ~= nil then
@@ -68,7 +69,7 @@ function apply_slow_effect(entity_id)
             local effect_comp = EntityGetFirstComponent(child_id, "GameEffectComponent")
             if effect_comp ~= nil then
                 local effect_type = ComponentGetValue2(effect_comp, "effect")
-                if effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
+                if effect_type == effect_to_use or effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
                     has_effect = true
                     ComponentSetValue2(effect_comp, "frames", 600)
                     break
@@ -78,7 +79,7 @@ function apply_slow_effect(entity_id)
     end
 
     if not has_effect then
-        local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
+        local effect_entity = EntityLoad("data/entities/misc/effect_internal_ice.xml")
         if effect_entity ~= nil and effect_entity ~= 0 then
             EntityAddChild(entity_id, effect_entity)
         end
