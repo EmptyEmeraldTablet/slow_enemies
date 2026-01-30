@@ -1,0 +1,4 @@
+enabled=true
+enemy_speed_multiplier=0.7
+projectile_speed_multiplier=0.6
+debug=false
