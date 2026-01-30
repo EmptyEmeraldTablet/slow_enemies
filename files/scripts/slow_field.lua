@@ -61,25 +61,37 @@ end
 
 function slow_enemy(entity_id, slow_mult)
     local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
-    if vel_comp == nil then
-        return
+    if vel_comp ~= nil then
+        local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
+        if vx ~= nil and vy ~= nil then
+            local speed = math.sqrt(vx * vx + vy * vy)
+            if speed > 1 then
+                local new_speed = speed * slow_mult
+                local new_vx = (vx / speed) * new_speed
+                local new_vy = (vy / speed) * new_speed
+                ComponentSetValue2(vel_comp, "mVelocity", new_vx, new_vy)
+            end
+        end
     end
 
-    local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
-    if vx == nil or vy == nil then
-        return
+    local char_comp = EntityGetFirstComponent(entity_id, "CharacterPlatformingComponent")
+    if char_comp ~= nil then
+        local run_vel = ComponentGetValue2(char_comp, "run_velocity")
+        if run_vel ~= nil then
+            ComponentSetValue2(char_comp, "run_velocity", run_vel * slow_mult)
+        end
+
+        local fly_speed = ComponentGetValue2(char_comp, "fly_speed_max_up")
+        if fly_speed ~= nil then
+            ComponentSetValue2(char_comp, "fly_speed_max_up", fly_speed * slow_mult)
+            ComponentSetValue2(char_comp, "fly_speed_max_down", fly_speed * slow_mult)
+        end
+
+        local fly_mult = ComponentGetValue2(char_comp, "fly_speed_mult")
+        if fly_mult ~= nil then
+            ComponentSetValue2(char_comp, "fly_speed_mult", fly_mult * slow_mult)
+        end
     end
-
-    local speed = math.sqrt(vx * vx + vy * vy)
-    if speed < 1 then
-        return
-    end
-
-    local new_speed = speed * slow_mult
-    local new_vx = (vx / speed) * new_speed
-    local new_vy = (vy / speed) * new_speed
-
-    ComponentSetValue2(vel_comp, "mVelocity", new_vx, new_vy)
 end
 
 function slow_projectile(entity_id, slow_mult)
