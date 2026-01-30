@@ -60,15 +60,28 @@ function get_distance(x1, y1, x2, y2)
 end
 
 function apply_slow_effect(entity_id)
-    if EntityHasTag(entity_id, "slowed") then
-        return
+    local has_effect = false
+
+    local children = EntityGetAllChildren(entity_id)
+    if children ~= nil then
+        for _, child_id in ipairs(children) do
+            local effect_comp = EntityGetFirstComponent(child_id, "GameEffectComponent")
+            if effect_comp ~= nil then
+                local effect_type = ComponentGetValue2(effect_comp, "effect")
+                if effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
+                    has_effect = true
+                    ComponentSetValue2(effect_comp, "frames", 600)
+                    break
+                end
+            end
+        end
     end
 
-    EntityAddTag(entity_id, "slowed")
-
-    local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
-    if effect_entity ~= nil and effect_entity ~= 0 then
-        EntityAddChild(entity_id, effect_entity)
+    if not has_effect then
+        local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
+        if effect_entity ~= nil and effect_entity ~= 0 then
+            EntityAddChild(entity_id, effect_entity)
+        end
     end
 end
 
