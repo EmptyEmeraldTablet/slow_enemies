@@ -1,3 +1,4 @@
+-- Configuration (hardcoded, no file I/O)
 local MOD_CONFIG = {
     enabled = true,
     enemy_speed_multiplier = 0.7,
@@ -6,23 +7,11 @@ local MOD_CONFIG = {
 }
 
 function LoadConfig()
-    local config_path = "mods/slow_enemies/config.txt"
-    if FileExists(config_path) then
-        local content = LoadFileContent(config_path)
-        for key, val in string.gmatch(content, "(%w+)=([^\r\n]+)") do
-            if val == "true" then MOD_CONFIG[key] = true
-            elseif val == "false" then MOD_CONFIG[key] = false
-            else MOD_CONFIG[key] = tonumber(val) or val end
-        end
-    end
+    -- Config is hardcoded above
 end
 
 function SaveConfig()
-    local content = ""
-    for k, v in pairs(MOD_CONFIG) do
-        content = content .. k .. "=" .. tostring(v) .. "\n"
-    end
-    SaveFileContent(content, "mods/slow_enemies/config.txt")
+    -- Not implemented (would require file I/O)
 end
 
 function IsEnabled()

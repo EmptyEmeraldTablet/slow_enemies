@@ -3,7 +3,6 @@ dofile_once("mods/slow_enemies/files/scripts/config.lua")
 local MOD_NAME = "SlowEnemies"
 local MOD_INIT_FLAG = MOD_NAME .. "_init_done"
 local processed_entities = {}
-local debug_frame_count = 0
 local debug_entity_count = 0
 local debug_projectile_count = 0
 local debug_print_cooldown = 0
@@ -31,24 +30,6 @@ end
 
 function debug_get_mouse_pos()
     return DEBUG_GetMouseWorld()
-end
-
-function debug_summary()
-    if not IsDebugEnabled() then
-        return
-    end
-
-    local count = 0
-    for _ in pairs(processed_entities) do
-        count = count + 1
-    end
-
-    log_debug("[SlowEnemies] ===== Debug Stats =====")
-    log_debug(string.format("  Frames: %d", debug_frame_count))
-    log_debug(string.format("  Slowed entities: %d", debug_entity_count))
-    log_debug(string.format("  Slowed projectiles: %d", debug_projectile_count))
-    log_debug(string.format("  Queue size: %d", count))
-    log_debug("[SlowEnemies] =========================")
 end
 
 function reduce_enemy_velocity(entity_id)
@@ -197,14 +178,11 @@ function debug_update_screen()
         return
     end
 
-    debug_frame_count = debug_frame_count + 1
+    debug_print_cooldown = debug_print_cooldown + 1
 
-    if debug_print_cooldown > 0 then
-        debug_print_cooldown = debug_print_cooldown - 1
-        return
-    end
+    if debug_print_cooldown >= 60 then
+        debug_print_cooldown = 0
 
-    if debug_frame_count % 60 == 0 then
         local mx, my = debug_get_mouse_pos()
 
         local count = 0
@@ -213,19 +191,17 @@ function debug_update_screen()
         end
 
         local status = string.format(
-            "[SlowEnemies] frm:%d m:(%.0f,%.0f) e:%d p:%d q:%d",
-            debug_frame_count, mx or 0, my or 0,
-            debug_entity_count, debug_projectile_count, count
+            "[SlowEnemies] e:%d p:%d q:%d m:(%.0f,%.0f)",
+            debug_entity_count, debug_projectile_count, count, mx or 0, my or 0
         )
         screen_debug(status)
-        debug_print_cooldown = 60
     end
 end
 
 function cleanup_processed_list()
     local to_remove = {}
     for entity_id, _ in pairs(processed_entities) do
-        if not EntityExists(entity_id) then
+        if not EntityGetIsAlive(entity_id) then
             table.insert(to_remove, entity_id)
         end
     end
@@ -236,11 +212,7 @@ end
 
 -- Public hook functions (called from init.lua)
 function _OnEntityCreated(entity_id)
-    GameScheduleFunction(function()
-        if EntityExists(entity_id) then
-            process_entity(entity_id)
-        end
-    end, {}, 1)
+    process_entity(entity_id)
 end
 
 function _OnEntityDestroyed(entity_id)
@@ -252,22 +224,16 @@ function _Update()
         return
     end
 
-    local entities = EntityGetAll()
-    for _, entity_id in ipairs(entities) do
-        process_entity(entity_id)
-    end
+    debug_update_screen()
 
     if GameGetFrameNum() % 300 == 0 then
         cleanup_processed_list()
     end
-
-    debug_update_screen()
 end
 
 function ModMain()
     LoadConfig()
 
-    -- Always print to verify mod is loaded
     print("[SlowEnemies] Mod initializing...")
 
     if GameHasFlagRun(MOD_INIT_FLAG) then
@@ -283,8 +249,5 @@ function ModMain()
 
     if IsDebugEnabled() then
         print("[SlowEnemies] Debug mode enabled")
-        print("  - Console: detailed logs")
-        print("  - Screen: status every 60 frames")
-        print("  - World: slowed entities marked cyan")
     end
 end
