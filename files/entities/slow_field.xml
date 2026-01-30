@@ -11,7 +11,7 @@
     </LuaComponent>
 
     <ParticleEmitterComponent
-        emitted_material_name="water"
+        emitted_material_name="air"
         count_min="1"
         count_max="3"
         lifetime_min="0.5"
