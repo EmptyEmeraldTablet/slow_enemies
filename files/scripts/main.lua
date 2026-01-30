@@ -180,10 +180,13 @@ function process_entity(entity_id)
         return
     end
 
-    if is_enemy_entity(entity_id) then
+    local is_enemy = is_enemy_entity(entity_id)
+    local is_proj = is_enemy_projectile(entity_id)
+
+    if is_enemy then
         reduce_enemy_velocity(entity_id)
         processed_entities[entity_id] = true
-    elseif is_enemy_projectile(entity_id) then
+    elseif is_proj then
         reduce_projectile_speed(entity_id)
         processed_entities[entity_id] = true
     end
@@ -219,7 +222,20 @@ function debug_update_screen()
     end
 end
 
-function OnEntityCreated(entity_id)
+function cleanup_processed_list()
+    local to_remove = {}
+    for entity_id, _ in pairs(processed_entities) do
+        if not EntityExists(entity_id) then
+            table.insert(to_remove, entity_id)
+        end
+    end
+    for _, entity_id in ipairs(to_remove) do
+        processed_entities[entity_id] = nil
+    end
+end
+
+-- Public hook functions (called from init.lua)
+function _OnEntityCreated(entity_id)
     GameScheduleFunction(function()
         if EntityExists(entity_id) then
             process_entity(entity_id)
@@ -227,11 +243,11 @@ function OnEntityCreated(entity_id)
     end, {}, 1)
 end
 
-function OnEntityDestroyed(entity_id)
+function _OnEntityDestroyed(entity_id)
     processed_entities[entity_id] = nil
 end
 
-function Update()
+function _Update()
     if not IsEnabled() then
         return
     end
@@ -248,29 +264,22 @@ function Update()
     debug_update_screen()
 end
 
-function cleanup_processed_list()
-    local to_remove = {}
-    for entity_id, _ in pairs(processed_entities) do
-        if not EntityExists(entity_id) then
-            table.insert(to_remove, entity_id)
-        end
-    end
-    for _, entity_id in ipairs(to_remove) do
-        processed_entities[entity_id] = nil
-    end
-end
-
 function ModMain()
     LoadConfig()
 
+    -- Always print to verify mod is loaded
+    print("[SlowEnemies] Mod initializing...")
+
     if GameHasFlagRun(MOD_INIT_FLAG) then
+        print("[SlowEnemies] Already initialized, skipping")
         return
     end
     GameAddFlagRun(MOD_INIT_FLAG)
 
-    print("[SlowEnemies] Mod loaded")
+    print("[SlowEnemies] Mod loaded successfully")
     print(string.format("  Enemy speed: %.2f", GetEnemySpeedMultiplier()))
     print(string.format("  Projectile speed: %.2f", GetProjectileSpeedMultiplier()))
+    print(string.format("  Enabled: %s", tostring(IsEnabled())))
 
     if IsDebugEnabled() then
         print("[SlowEnemies] Debug mode enabled")

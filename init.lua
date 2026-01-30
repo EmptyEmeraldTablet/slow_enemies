@@ -1,7 +1,7 @@
-dofile("mods/slow_enemies/files/scripts/main.lua")
+dofile_once("mods/slow_enemies/files/scripts/main.lua")
 
 function OnModPreInit()
-
+    ModMain()
 end
 
 function OnModInit()
@@ -20,8 +20,16 @@ function OnWorldInitialized()
 
 end
 
-function OnWorldPreUpdate()
+function OnEntityCreated(entity_id)
+    _OnEntityCreated(entity_id)
+end
 
+function OnEntityDestroyed(entity_id)
+    _OnEntityDestroyed(entity_id)
+end
+
+function OnWorldPreUpdate()
+    _Update()
 end
 
 function OnWorldPostUpdate()
