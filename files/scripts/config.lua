@@ -2,8 +2,9 @@
 local MOD_CONFIG = {
     enabled = true,
     enemy_speed_multiplier = 0.7,
+    enemy_accel_multiplier = 0.7,
     projectile_speed_multiplier = 0.6,
-    debug = true  -- Enable debug for troubleshooting
+    debug = true
 }
 
 function LoadConfig()
@@ -16,6 +17,10 @@ end
 
 function GetEnemySpeedMultiplier()
     return MOD_CONFIG.enemy_speed_multiplier
+end
+
+function GetEnemyAccelMultiplier()
+    return MOD_CONFIG.enemy_accel_multiplier
 end
 
 function GetProjectileSpeedMultiplier()
