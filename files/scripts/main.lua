@@ -1,5 +1,4 @@
-dofile("mods/slow_enemies/files/scripts/config.lua")
-dofile("data/scripts/utilities.lua")
+dofile_once("mods/slow_enemies/files/scripts/config.lua")
 
 local MOD_NAME = "SlowEnemies"
 local MOD_INIT_FLAG = MOD_NAME .. "_init_done"
@@ -109,11 +108,36 @@ function reduce_projectile_speed(entity_id)
     end
 end
 
+<<<<<<< HEAD
+=======
+function get_players()
+    return EntityGetWithTag("player_unit")
+end
+
+function is_player_entity(entity_id)
+    if entity_id == nil or entity_id == 0 then
+        return false
+    end
+
+    local players = get_players()
+    if players ~= nil then
+        for _, player_id in ipairs(players) do
+            if player_id == entity_id then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+>>>>>>> 926428d (Fix: Use correct dofile_once path and API patterns)
 function is_enemy_entity(entity_id)
     if entity_id == nil or entity_id == 0 then
         return false
     end
 
+<<<<<<< HEAD
     local is_player = false
     local players = get_players()
     if players ~= nil then
@@ -126,6 +150,9 @@ function is_enemy_entity(entity_id)
     end
 
     if is_player then
+=======
+    if is_player_entity(entity_id) then
+>>>>>>> 926428d (Fix: Use correct dofile_once path and API patterns)
         return false
     end
 
@@ -154,6 +181,7 @@ function is_enemy_projectile(entity_id)
 
     local shooter = ComponentGetValue2(comp, "mWhoShot")
     if shooter ~= nil and shooter ~= 0 then
+<<<<<<< HEAD
         local players = get_players()
         if players ~= nil then
             for _, player_id in ipairs(players) do
@@ -161,6 +189,10 @@ function is_enemy_projectile(entity_id)
                     return false
                 end
             end
+=======
+        if is_player_entity(shooter) then
+            return false
+>>>>>>> 926428d (Fix: Use correct dofile_once path and API patterns)
         end
     end
 
