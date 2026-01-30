@@ -5,7 +5,7 @@ local field_x, field_y = EntityGetTransform(field_entity_id)
 local frame = GameGetFrameNum()
 
 local config = {
-    radius = 150,
+    radius = 1500,  -- 覆盖玩家可视范围（约10倍）
     enemy_slow_mult = 0.1,
     projectile_slow_mult = 0.1
 }
