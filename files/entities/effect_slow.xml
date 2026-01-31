@@ -1,0 +1,17 @@
+<Entity>
+	<Base file="data/entities/particles/ice.xml" >
+		<SpriteParticleEmitterComponent
+			emission_interval_min_frames="5"
+			emission_interval_max_frames="15"
+			randomize_position_inside_hitbox="1"  >
+		</SpriteParticleEmitterComponent>
+	</Base>
+	
+	<InheritTransformComponent>
+    </InheritTransformComponent>	
+    
+    <GameEffectComponent 
+    	effect="MOVEMENT_SLOWER"
+    	frames="60" >
+    </GameEffectComponent >
+</Entity>

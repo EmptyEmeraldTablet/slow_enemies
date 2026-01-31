@@ -4,11 +4,10 @@
     <InheritTransformComponent>
     </InheritTransformComponent>
 
-    <LuaComponent
-        execute_every_n_frame="4"
-        script_source_file="mods/slow_enemies/files/scripts/slow_field.lua"
+    <GameAreaEffectComponent
+        radius="128"
     >
-    </LuaComponent>
+    </GameAreaEffectComponent>
 
     <ParticleEmitterComponent
         emitted_material_name="air"
@@ -19,5 +18,20 @@
         is_emitting="1"
     >
     </ParticleEmitterComponent>
+
+    <Base file="data/entities/projectiles/deck/base_field.xml">
+        <ProjectileComponent
+            damage_game_effect_entities="mods/slow_enemies/files/entities/effect_slow.xml,"
+            friendly_fire="0"
+            damage="0"
+        >
+        </ProjectileComponent>
+    </Base>
+
+    <LuaComponent
+        execute_every_n_frame="4"
+        script_source_file="mods/slow_enemies/files/scripts/slow_field.lua"
+    >
+    </LuaComponent>
 
 </Entity>

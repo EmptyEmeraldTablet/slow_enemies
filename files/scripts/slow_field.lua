@@ -4,34 +4,10 @@ local field_entity_id = GetUpdatedEntityID()
 local field_x, field_y = EntityGetTransform(field_entity_id)
 local frame = GameGetFrameNum()
 
-    local config = {
-        radius = 512,  -- 覆盖玩家可视范围
-        enemy_slow_mult = 0.4,
-        projectile_slow_mult = 0.4
-    }
-
-function is_player(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    return EntityHasTag(entity_id, "player_unit")
-end
-
-function is_enemy(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    if is_player(entity_id) then
-        return false
-    end
-    if EntityHasTag(entity_id, "enemy") then
-        return true
-    end
-    if EntityHasTag(entity_id, "mortal") and not EntityHasTag(entity_id, "item") then
-        return true
-    end
-    return false
-end
+local config = {
+    radius = 128,
+    projectile_slow_mult = 0.4
+}
 
 function is_enemy_projectile(entity_id)
     if entity_id == nil or entity_id == 0 then
@@ -45,7 +21,7 @@ function is_enemy_projectile(entity_id)
 
     local shooter = ComponentGetValue2(proj_comp, "mWhoShot")
     if shooter ~= nil and shooter ~= 0 then
-        if is_player(shooter) then
+        if EntityHasTag(shooter, "player_unit") then
             return false
         end
     end
@@ -57,42 +33,6 @@ function get_distance(x1, y1, x2, y2)
     local dx = x2 - x1
     local dy = y2 - y1
     return math.sqrt(dx * dx + dy * dy)
-end
-
-function apply_slow_effect(entity_id)
-    local has_internal_ice = false
-    local has_movement_slower = false
-
-    local children = EntityGetAllChildren(entity_id)
-    if children ~= nil then
-        for _, child_id in ipairs(children) do
-            local effect_comp = EntityGetFirstComponent(child_id, "GameEffectComponent")
-            if effect_comp ~= nil then
-                local effect_type = ComponentGetValue2(effect_comp, "effect")
-                if effect_type == "INTERNAL_ICE" then
-                    has_internal_ice = true
-                    ComponentSetValue2(effect_comp, "frames", 600)
-                elseif effect_type == "MOVEMENT_SLOWER" or effect_type == "MOVEMENT_SLOWER_2X" then
-                    has_movement_slower = true
-                    ComponentSetValue2(effect_comp, "frames", 600)
-                end
-            end
-        end
-    end
-
-    if not has_internal_ice then
-        local effect_entity = EntityLoad("data/entities/misc/effect_internal_ice.xml")
-        if effect_entity ~= nil and effect_entity ~= 0 then
-            EntityAddChild(entity_id, effect_entity)
-        end
-    end
-
-    if not has_movement_slower then
-        local effect_entity = EntityLoad("data/entities/misc/effect_movement_slower.xml")
-        if effect_entity ~= nil and effect_entity ~= 0 then
-            EntityAddChild(entity_id, effect_entity)
-        end
-    end
 end
 
 function slow_projectile(entity_id, slow_mult)
@@ -122,50 +62,20 @@ function slow_projectile(entity_id, slow_mult)
     end
 end
 
-if config.radius > 0 then
-    local enemies = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "enemy")
+local projectiles = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "projectile")
+for _, proj_id in ipairs(projectiles) do
+    if is_enemy_projectile(proj_id) then
+        local px, py = EntityGetTransform(proj_id)
+        local dist = get_distance(field_x, field_y, px, py)
 
-    for _, enemy_id in ipairs(enemies) do
-        if not is_player(enemy_id) then
-            local ex, ey = EntityGetTransform(enemy_id)
-            local dist = get_distance(field_x, field_y, ex, ey)
+        if dist < config.radius then
+            local dist_factor = 1.0 - (dist / config.radius)
+            dist_factor = math.max(dist_factor, 0.01)
 
-            if dist < config.radius then
-                apply_slow_effect(enemy_id)
-            end
-        end
-    end
+            local slow_mult = 1.0 - (dist_factor * (1.0 - config.projectile_slow_mult))
+            slow_mult = math.max(slow_mult, 0.1)
 
-    local mortals = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "mortal")
-    for _, enemy_id in ipairs(mortals) do
-        if not is_player(enemy_id)
-           and not EntityHasTag(enemy_id, "item")
-           and not EntityHasTag(enemy_id, "corpse")
-           and not EntityHasTag(enemy_id, "dead") then
-            local ex, ey = EntityGetTransform(enemy_id)
-            local dist = get_distance(field_x, field_y, ex, ey)
-
-            if dist < config.radius then
-                apply_slow_effect(enemy_id)
-            end
-        end
-    end
-
-    local projectiles = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "projectile")
-    for _, proj_id in ipairs(projectiles) do
-        if is_enemy_projectile(proj_id) then
-            local px, py = EntityGetTransform(proj_id)
-            local dist = get_distance(field_x, field_y, px, py)
-
-            if dist < config.radius then
-                local dist_factor = 1.0 - (dist / config.radius)
-                dist_factor = math.max(dist_factor, 0.01)
-
-                local slow_mult = 1.0 - (dist_factor * (1.0 - config.projectile_slow_mult))
-                slow_mult = math.max(slow_mult, 0.1)
-
-                slow_projectile(proj_id, slow_mult)
-            end
+            slow_projectile(proj_id, slow_mult)
         end
     end
 end
