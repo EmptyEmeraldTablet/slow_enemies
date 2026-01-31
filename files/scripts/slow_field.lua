@@ -2,7 +2,6 @@ dofile_once("mods/slow_enemies/files/scripts/config.lua")
 
 local field_entity_id = GetUpdatedEntityID()
 local field_x, field_y = EntityGetTransform(field_entity_id)
-local frame = GameGetFrameNum()
 
 local config = {
     radius = 128,
