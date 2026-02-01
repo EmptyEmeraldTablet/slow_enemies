@@ -5,32 +5,8 @@ local field_x, field_y = EntityGetTransform(field_entity_id)
 
 local config = {
     radius = 128,
-    enemy_slow_mult = 0.4,
     projectile_slow_mult = 0.4
 }
-
-function is_player(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    return EntityHasTag(entity_id, "player_unit")
-end
-
-function is_enemy(entity_id)
-    if entity_id == nil or entity_id == 0 then
-        return false
-    end
-    if is_player(entity_id) then
-        return false
-    end
-    if EntityHasTag(entity_id, "enemy") then
-        return true
-    end
-    if EntityHasTag(entity_id, "mortal") and not EntityHasTag(entity_id, "item") then
-        return true
-    end
-    return false
-end
 
 function is_enemy_projectile(entity_id)
     if entity_id == nil or entity_id == 0 then
@@ -58,24 +34,6 @@ function get_distance(x1, y1, x2, y2)
     return math.sqrt(dx * dx + dy * dy)
 end
 
-function slow_enemy(entity_id, slow_mult)
-    local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
-    if vel_comp == nil then
-        return
-    end
-
-    local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
-    if vx == nil or vy == nil then
-        return
-    end
-
-    local speed = math.sqrt(vx * vx + vy * vy)
-    if speed > 0 then
-        local new_speed = speed * slow_mult
-        ComponentSetValue2(vel_comp, "mVelocity", (vx / speed) * new_speed, (vy / speed) * new_speed)
-    end
-end
-
 function slow_projectile(entity_id, slow_mult)
     local proj_comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
     if proj_comp == nil then
@@ -99,45 +57,6 @@ function slow_projectile(entity_id, slow_mult)
                 local new_speed = speed * slow_mult
                 ComponentSetValue2(vel_comp, "mVelocity", (vx / speed) * new_speed, (vy / speed) * new_speed)
             end
-        end
-    end
-end
-
-local enemies = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "enemy")
-for _, enemy_id in ipairs(enemies) do
-    if not is_player(enemy_id) then
-        local ex, ey = EntityGetTransform(enemy_id)
-        local dist = get_distance(field_x, field_y, ex, ey)
-
-        if dist < config.radius then
-            local dist_factor = 1.0 - (dist / config.radius)
-            dist_factor = math.max(dist_factor, 0.01)
-
-            local slow_mult = 1.0 - (dist_factor * (1.0 - config.enemy_slow_mult))
-            slow_mult = math.max(slow_mult, 0.1)
-
-            slow_enemy(enemy_id, slow_mult)
-        end
-    end
-end
-
-local mortals = EntityGetInRadiusWithTag(field_x, field_y, config.radius, "mortal")
-for _, enemy_id in ipairs(mortals) do
-    if not is_player(enemy_id)
-       and not EntityHasTag(enemy_id, "item")
-       and not EntityHasTag(enemy_id, "corpse")
-       and not EntityHasTag(enemy_id, "dead") then
-        local ex, ey = EntityGetTransform(enemy_id)
-        local dist = get_distance(field_x, field_y, ex, ey)
-
-        if dist < config.radius then
-            local dist_factor = 1.0 - (dist / config.radius)
-            dist_factor = math.max(dist_factor, 0.01)
-
-            local slow_mult = 1.0 - (dist_factor * (1.0 - config.enemy_slow_mult))
-            slow_mult = math.max(slow_mult, 0.1)
-
-            slow_enemy(enemy_id, slow_mult)
         end
     end
 end

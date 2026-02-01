@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<mod format="1" name="Slow Enemies" description="降低敌人及其投射物的移动速度，对玩家无影响">
+<mod format="1" name="Slow Projectiles" description="降低敌人投射物的飞行速度，对玩家无影响">
     <load_order>50</load_order>
     <tags>gameplay, tweaks</tags>
 </mod>
