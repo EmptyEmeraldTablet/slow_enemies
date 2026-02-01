@@ -1,37 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Entity tags="slow_field">
-
-    <InheritTransformComponent>
-    </InheritTransformComponent>
-
-    <ParticleEmitterComponent
-        emitted_material_name="air"
-        count_min="1"
-        count_max="3"
-        lifetime_min="0.5"
-        lifetime_max="1.0"
-        is_emitting="1"
-    >
-    </ParticleEmitterComponent>
-
-    <Base file="data/entities/projectiles/deck/base_field.xml">
-        <ProjectileComponent
-            penetrate_entities="1"
-            collide_with_world="0"
-            lifetime="-1"
-            speed_min="0"
-            speed_max="0"
-            damage="0"
-            friendly_fire="1"
-            damage_every_x_frames="15"
-        >
-        </ProjectileComponent>
-    </Base>
-
     <LuaComponent
         execute_every_n_frame="4"
         script_source_file="mods/slow_enemies/files/scripts/slow_field.lua"
     >
     </LuaComponent>
-
 </Entity>
