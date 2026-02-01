@@ -4,8 +4,8 @@ local field_entity_id = GetUpdatedEntityID()
 local field_x, field_y = EntityGetTransform(field_entity_id)
 
 local config = {
-    radius = 128,
-    projectile_slow_mult = 0.4
+    radius = 200,
+    projectile_slow_mult = 0.75
 }
 
 function is_enemy_projectile(entity_id)
@@ -35,29 +35,20 @@ function get_distance(x1, y1, x2, y2)
 end
 
 function slow_projectile(entity_id, slow_mult)
-    local proj_comp = EntityGetFirstComponent(entity_id, "ProjectileComponent")
-    if proj_comp == nil then
+    local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
+    if vel_comp == nil then
         return
     end
 
-    local speed_min = ComponentGetValue2(proj_comp, "speed_min")
-    local speed_max = ComponentGetValue2(proj_comp, "speed_max")
-
-    if speed_min and speed_max then
-        ComponentSetValue2(proj_comp, "speed_min", speed_min * slow_mult)
-        ComponentSetValue2(proj_comp, "speed_max", speed_max * slow_mult)
+    local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
+    if vx == nil or vy == nil then
+        return
     end
 
-    local vel_comp = EntityGetFirstComponent(entity_id, "VelocityComponent")
-    if vel_comp ~= nil then
-        local vx, vy = ComponentGetValue2(vel_comp, "mVelocity")
-        if vx ~= nil and vy ~= nil then
-            local speed = math.sqrt(vx * vx + vy * vy)
-            if speed > 0 then
-                local new_speed = speed * slow_mult
-                ComponentSetValue2(vel_comp, "mVelocity", (vx / speed) * new_speed, (vy / speed) * new_speed)
-            end
-        end
+    local speed = math.sqrt(vx * vx + vy * vy)
+    if speed > 0 then
+        local new_speed = speed * slow_mult
+        ComponentSetValue2(vel_comp, "mVelocity", (vx / speed) * new_speed, (vy / speed) * new_speed)
     end
 end
 
@@ -68,13 +59,7 @@ for _, proj_id in ipairs(projectiles) do
         local dist = get_distance(field_x, field_y, px, py)
 
         if dist < config.radius then
-            local dist_factor = 1.0 - (dist / config.radius)
-            dist_factor = math.max(dist_factor, 0.01)
-
-            local slow_mult = 1.0 - (dist_factor * (1.0 - config.projectile_slow_mult))
-            slow_mult = math.max(slow_mult, 0.1)
-
-            slow_projectile(proj_id, slow_mult)
+            slow_projectile(proj_id, config.projectile_slow_mult)
         end
     end
 end
