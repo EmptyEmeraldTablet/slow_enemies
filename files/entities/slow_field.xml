@@ -4,11 +4,6 @@
     <InheritTransformComponent>
     </InheritTransformComponent>
 
-    <GameAreaEffectComponent
-        radius="128"
-    >
-    </GameAreaEffectComponent>
-
     <ParticleEmitterComponent
         emitted_material_name="air"
         count_min="1"
@@ -27,7 +22,6 @@
             speed_min="0"
             speed_max="0"
             damage="0"
-            damage_game_effect_entities="mods/slow_enemies/files/entities/effect_slow.xml,mods/slow_enemies/files/entities/effect_wet.xml,"
             friendly_fire="1"
             damage_every_x_frames="15"
         >
